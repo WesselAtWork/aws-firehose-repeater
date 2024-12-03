@@ -1,0 +1,8 @@
+{
+  "recommendations": [
+    "timonwong.shellcheck",
+    "editorconfig.editorconfig",
+    "task.vscode-task",
+    "bierner.markdown-mermaid"
+  ]
+}
