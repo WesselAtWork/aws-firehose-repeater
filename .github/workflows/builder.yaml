@@ -16,7 +16,7 @@ on:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: write
@@ -33,6 +33,7 @@ jobs:
 
       - name: Install tools
         run: |
+          lsb_release -a
           task install:tools
           task versioninfo
 
