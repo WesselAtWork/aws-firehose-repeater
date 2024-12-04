@@ -8,6 +8,9 @@ This uses the `Firehose -> S3` Path to allow you to pretend to be firehose insid
 
 # WARNING
 
+* **We build weekly!**   
+  We shoot our feet here: Every tag will track! 
+
 * Not 1:1
 * Some Jank™
 * Not Volume Tested
@@ -43,6 +46,16 @@ You need to setup AWS firehose with:
   Enable debug output e.g. `/dev/stderr` or `/tmp/debug.logs`
 
 
+# How to
+
+## install dev tools
+
+`task install:tools`
+
+## build
+
+`task podman:build:local`
+
 # FAQ
 
 ## Why do the s3 get with a curl request?
@@ -64,3 +77,7 @@ Damnit I should have started with that `:(`
 ## Why not use **[PROGRAMING LANGUAGE]**?
 
 It's my [Cursed Hammer](https://loststeak.com/if-programming-languages-were-weapons/#bash) and I _must_ hit every ~~thumb~~ _Nail_ I see!
+
+## What's up with the annotations?
+
+Not very well suppoorted by podman, the annotations from Alpine fall through to the main layer. So I have to set them all

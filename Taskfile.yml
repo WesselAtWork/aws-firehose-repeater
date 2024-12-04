@@ -1,0 +1,90 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+# https://taskfile.dev
+
+version: '3'
+
+dotenv: ['version.env', '.env']
+
+vars:
+  BRANCH:
+    sh: git rev-parse --abbrev-ref HEAD
+  COMMIT:
+    sh: git rev-parse HEAD
+  REGISTRY: ghcr.io
+  NAMESPACE: wesselatwork
+
+
+tasks:
+  init:
+    cmds:
+      - echo "$(<./config.env.example)" > ./config.env
+
+  install:tools:
+    cmds:
+      - cmd: 'winget install  RedHat.Podman RedHat.Podman-Desktop jqlang.jq Kubernetes.kubectl Kubernetes.kustomize   --source winget'
+        platforms: ['windows']
+      - cmd: 'apt update && apt install -y podman skopeo jq qemu-user-static'
+        platforms: ['linux']
+
+
+  kustomize:local:
+    cmds:
+      - kustomize build . > gen.yaml
+
+  kustomize:default:
+    cmds:
+      - kubectl create namespace aws-firehose-repeater
+      - kubectl apply -n aws-firehose-repeater -k .
+
+
+  podman:login:
+    description: "Generic podman login. Spesify the username and then pipe the password."
+    cmds:
+      - podman login "{{.REGISTRY}}" -u {{.CLI_ARGS}} --password-stdin
+
+  podman:login:ecr:
+    cmds:
+      - aws ecr get-login-password --region {{.AWS_REGION}} | podman login --password-stdin --username AWS "${REGISTRY}"
+
+  podman:build:local:
+    cmds:
+      - podman build --layers . -f .\Containerfile -t localhost/aws-firehose-repeater:local
+
+  podman:build:
+    env:
+      DATETIME: ""  # You should set this
+      #  sh: date -u --iso-8601=seconds   # damnit DOS!
+    vars:
+      MANIFEST: "aws-firehose-repeater:manifest"
+      NAME: "{{.REGISTRY}}/{{.NAMESPACE}}/aws-firehose-repeater"
+      CACHE: "{{.REGISTRY}}/{{.NAMESPACE}}/aws-firehose-repeater-cache"
+      PLATFORMS: "linux/amd64,linux/arm64"
+      ALPINE_VERSION:
+        sh: skopeo inspect --raw docker://docker.io/library/alpine:latest | jq -r '.manifests[0].annotations."org.opencontainers.image.version"'
+      NAMES: '{{.NAME}}:latest {{.NAME}}:{{.BRANCH}} {{.NAME}}:{{.COMMIT}} {{.NAME}}:{{.VERSION}} {{.NAME}}:alpine {{.NAME}}:alpine-{{.ALPINE_VERSION}}'
+    cmds:
+      - echo "CURRENTLY '--layers + --squash' does not work as intended https://github.com/containers/podman/issues/20824"
+      - podman manifest create {{ .MANIFEST }}
+      - defer: podman manifest rm {{.MANIFEST}}
+      - >
+          podman build --tls-verify=false
+          --manifest {{ .MANIFEST }}
+          --annotation org.opencontainers.image.description="Repeats firehose records from s3 to a target http address"
+          --annotation org.opencontainers.image.base.name=docker.io/alpine:{{.ALPINE_VERSION}}
+          --annotation org.opencontainers.image.revision={{.COMMIT}}
+          --annotation org.opencontainers.image.licenses={{.LICENCE}}
+          --annotation org.opencontainers.image.version={{.VERSION}}
+          --annotation org.opencontainers.image.created=$DATETIME
+          --annotation org.opencontainers.image.source={{.SOURCE}}
+          --annotation org.opencontainers.image.url={{.SOURCE}}
+          --annotation com.docker.official-images.bashbrew.arch=
+          --layers --squash-all
+          --build-arg alpine_version={{.ALPINE_VERSION}}
+          --platform {{.PLATFORMS}} --jobs 2
+          --cache-to {{.CACHE}} --cache-from {{.CACHE}}
+          . -f ./Containerfile
+      - podman manifest inspect {{.MANIFEST}}
+      - podman tag {{.MANIFEST}}  {{.NAMES}}
+      #- podman manifest rm {{.MANIFEST}}  # from docs
+      - for: { var: NAMES }
+        cmd: podman manifest push --tls-verify=false --all {{.ITEM}}

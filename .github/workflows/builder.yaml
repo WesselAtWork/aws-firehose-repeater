@@ -1,0 +1,39 @@
+name: Podman Builder
+
+on:
+  schedule:
+    - cron: $cron-weekly
+  push:
+    branches: [ $default-branch ]
+    # Publish semver tags as releases.
+    tags: [ '*.*.*' ]
+  pull_request:
+    branches: [ $default-branch ]
+
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Task
+        uses: arduino/setup-task@v2
+        with:
+          version: 3.x
+          repo-token: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Install tools
+        run: task install:tools
+
+      - name: Login to Registry
+        run: echo ${{secrets.GITHUB_TOKEN}} | task podman:login ${{github.actor}}
+
+      - name: Build Image
+        run: DATETIME=$(date -u --iso-8601=seconds)  task NAMESPACE=${{github.repository_owner}} build:podman
