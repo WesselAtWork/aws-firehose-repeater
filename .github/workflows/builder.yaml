@@ -1,8 +1,9 @@
 name: Podman Builder
 
 on:
+  # runs every monday at 4 am
   schedule:
-    - cron: $cron-weekly
+    - cron: "0 4 * * 1"
   push:
     branches: [ $default-branch ]
     # Publish semver tags as releases.
