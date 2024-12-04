@@ -23,7 +23,8 @@ tasks:
     cmds:
       - cmd: 'winget install  RedHat.Podman RedHat.Podman-Desktop jqlang.jq Kubernetes.kubectl Kubernetes.kustomize   --source winget'
         platforms: ['windows']
-      - cmd: 'apt update && apt install -y podman skopeo jq qemu-user-static'
+      # `doas` my beloved </3
+      - cmd: 'sudo apt update && sudo apt install -y podman skopeo jq qemu-user-static'
         platforms: ['linux']
 
 
