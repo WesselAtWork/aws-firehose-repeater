@@ -32,7 +32,9 @@ jobs:
           repo-token: ${{secrets.GITHUB_TOKEN}}
 
       - name: Install tools
-        run: task install:tools
+        run: |
+          task install:tools
+          task versioninfo
 
       - name: Login to Registry
         run: echo ${{secrets.GITHUB_TOKEN}} | task podman:login -- ${{github.actor}}
