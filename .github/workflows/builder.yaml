@@ -35,7 +35,7 @@ jobs:
         run: task install:tools
 
       - name: Login to Registry
-        run: echo ${{secrets.GITHUB_TOKEN}} | task podman:login ${{github.actor}}
+        run: echo ${{secrets.GITHUB_TOKEN}} | task podman:login -- ${{github.actor}}
 
       - name: Build Image
         run: DATETIME=$(date -u --iso-8601=seconds)  task NAMESPACE=${{github.repository_owner}} build:podman
