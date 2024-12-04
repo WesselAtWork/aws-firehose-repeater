@@ -38,4 +38,4 @@ jobs:
         run: echo ${{secrets.GITHUB_TOKEN}} | task podman:login -- ${{github.actor}}
 
       - name: Build Image
-        run: DATETIME=$(date -u --iso-8601=seconds)  task NAMESPACE=${{github.repository_owner}} build:podman
+        run: DATETIME=$(date -u --iso-8601=seconds)  task NAMESPACE=${{github.repository_owner}} podman:build
