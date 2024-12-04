@@ -27,6 +27,11 @@ tasks:
       - cmd: 'sudo apt update && sudo apt install -y podman skopeo jq qemu-user-static'
         platforms: ['linux']
 
+  versioninfo:
+    cmds:
+      - podman version
+      - jq --version
+      - skopeo --version
 
   kustomize:local:
     cmds:
