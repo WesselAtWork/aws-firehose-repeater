@@ -1,13 +1,13 @@
-aws-firehose-repeater (afhr) is licensed AGPLv3.0 or later.
-See LICENSE.AGPL-3.0-or-later for further details.
+aws-firehose-repeater (afhr) is licensed Apache 2.0.
+See LICENSE.Apache-2.0 for further details.
 
 License information for any other files is either explicitly stated
-or defaults to the Affero GPL Version 3.0 or later.
+or defaults to the Apache Version 2.0.
 
 Individual files contain the following style tags or comments instead of the
 full license text to identify their license:
 
-    SPDX-License-Identifier: AGPL-3.0-or-later
+    SPDX-License-Identifier: Apache-2.0
 
 This enables machine processing of license information based on the SPDX
 License Identifiers that are here available: http://spdx.org/licenses/

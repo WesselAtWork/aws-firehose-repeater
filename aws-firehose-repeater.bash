@@ -1,6 +1,6 @@
 #!/bin/bash
 # shellcheck disable=SC2317
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 
 set -e
 set -u

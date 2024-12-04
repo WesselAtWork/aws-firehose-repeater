@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 ARG alpine_version=latest
 
 FROM docker.io/alpine:$alpine_version AS final

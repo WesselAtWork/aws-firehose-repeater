@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: AGPL-3.0-or-later
+# SPDX-License-Identifier: Apache-2.0
 # https://taskfile.dev
 
 version: '3'
@@ -67,7 +67,7 @@ tasks:
       PLATFORMS: "linux/amd64,linux/arm64"
       ALPINE_VERSION:
         sh: skopeo inspect --raw docker://docker.io/library/alpine:latest | jq -r '.manifests[0].annotations."org.opencontainers.image.version"'
-      NAMES: '{{.NAME}}:latest {{.NAME}}:{{.BRANCH}} {{.NAME}}:{{.COMMIT}} {{.NAME}}:{{.VERSION}} {{.NAME}}:alpine {{.NAME}}:alpine-{{.ALPINE_VERSION}}'
+      NAMES: '{{.NAME}}:latest {{.NAME}}:{{.BRANCH}} {{.NAME}}:{{.COMMIT}} {{.NAME}}:alpine {{.NAME}}:alpine-{{.ALPINE_VERSION}} {{.NAME}}:{{.VERSION}}'
     cmds:
       - echo "CURRENTLY '--layers + --squash' does not work as intended https://github.com/containers/podman/issues/20824"
       - podman manifest create {{ .MANIFEST }}
