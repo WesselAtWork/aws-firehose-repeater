@@ -31,7 +31,7 @@ jobs:
           version: 3.x
           repo-token: ${{secrets.GITHUB_TOKEN}}
 
-      - name: Install tools
+      - name: Install Tools and Info
         run: |
           lsb_release -a
           task install:tools
@@ -41,4 +41,6 @@ jobs:
         run: echo ${{secrets.GITHUB_TOKEN}} | task podman:login -- ${{github.actor}}
 
       - name: Build Image
-        run: DATETIME=$(date -u --iso-8601=seconds)  task NAMESPACE=${{github.repository_owner}} podman:build
+        env:
+          OWNER: ${{github.repository_owner}}
+        run: DATETIME=$(date -u --iso-8601=seconds)  task NAMESPACE=${OWNER,,} podman:build
