@@ -73,7 +73,7 @@ tasks:
       - podman manifest create {{ .MANIFEST }}
       - defer: podman manifest rm {{.MANIFEST}}
       - >
-          podman build --tls-verify=false
+          podman build
           --manifest {{ .MANIFEST }}
           --annotation org.opencontainers.image.description="Repeats firehose records from s3 to a target http address"
           --annotation org.opencontainers.image.base.name=docker.io/alpine:{{.ALPINE_VERSION}}
@@ -93,4 +93,4 @@ tasks:
       - podman tag {{.MANIFEST}}  {{.NAMES}}
       #- podman manifest rm {{.MANIFEST}}  # from docs
       - for: { var: NAMES }
-        cmd: podman manifest push --tls-verify=false --all {{.ITEM}}
+        cmd: podman manifest push --all {{.ITEM}}
