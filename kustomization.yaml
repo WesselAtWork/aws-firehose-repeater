@@ -13,7 +13,3 @@ secretGenerator:
 - name: aws-firehose-repeater-env
   envs:
   - config.env
-
-replicas:
-- name: aws-firehose-repeater
-  count: 0

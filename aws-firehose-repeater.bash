@@ -16,13 +16,21 @@ exec 1> "$FD_OUT"
 exec 2> "$FD_ERR"
 exec 3> "$FD_DEBUG"
 
-# Loads AWS Creds into env
+# Loads AWS variables
 
-echo ${AWS_PROFILE:+"Using AWS Profile ${AWS_PROFILE}"} >&3
+echo ${AWS_PROFILE:+"Using AWS Profile: ${AWS_PROFILE}"} >&3
 
-eval "$(aws configure export-credentials --format env)"
-export AWS_REGION=${AWS_REGION:-"$(aws configure get region)"}
+if [ -z "${AWS_ACCESS_KEY_ID:-}" ]; then
+  eval "$(aws configure export-credentials --format env)"
+fi
+: "${AWS_ACCESS_KEY_ID:?"AWS Error! Could not determine key creds!"}"
+: "${AWS_SECRET_ACCESS_KEY:?"AWS Error! Could not determine secret creds!"}"
+
+export AWS_REGION=${AWS_REGION:-"$(aws configure get region)"} # aws is a pain, please just give me the region T_T.  `aws configure get region` only works with .aws/config.
+: "${AWS_REGION:?"Could not determine the AWS_REGION! Please provide it."}"
+
 export AWS_ACCOUNT=${AWS_ACCOUNT:-"$(aws sts get-caller-identity --query Account --output text)"}
+: "${AWS_ACCOUNT:?"AWS Error! Could not determine account id!"}"
 
 # Main Variables
 
@@ -40,8 +48,11 @@ export AWS_ACCOUNT=${AWS_ACCOUNT:-"$(aws sts get-caller-identity --query Account
 # stream_out: none
 fakeFireHosePost() {
   echo "Sending: $1" > /dev/stderr
+  local e_opts
+  e_opts=( "${CURL_EXTRA_OPTS:-}" )
   # https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html
-  curl --json @- -X POST "$FIREHOSE_TARGET" \
+  curl  --json @- -X POST "$FIREHOSE_TARGET" \
+    "${e_opts[@]}" \
     --connect-timeout "${CURL_TIMEOUT:-5}" --retry-max-time "${CURL_RETRY_MAX_TIME:-65}" --retry "${CURL_RETRY:-6}" \
     -H 'Content-Type: application/json' \
     -H "X-Amz-Firehose-Protocol-Version: ${FIREHOSE_PROTOCOL_VERSION:-1.0}" \
@@ -49,7 +60,7 @@ fakeFireHosePost() {
     -H "X-Amz-Firehose-Source-Arn: arn:aws:firehose:${AWS_REGION}:${AWS_ACCOUNT}:deliverystream/${2}" \
     -H "X-Amz-Firehose-Access-Key: ${FIREHOSE_KEY}" \
     -H "X-Amz-Firehose-Common-Attributes: ${FIREHOSE_COMMON_ATR}" \
-    --silent --fail-with-body | { printf '%s' 'Response: '; cat; printf '\n'; } | paste &> /dev/stderr
+    -sS --fail-with-body 2>&1 | { printf '%s' 'Response: '; cat; printf '\n'; } | paste &> /dev/stderr
 
   # using paste here as a substitute for sponge :^)
 }
@@ -90,7 +101,7 @@ s3micro() {
     -H "Authorization: ${authorization}" \
     -X "$method" \
     "https://${bucket}.s3.amazonaws.com/${objKey}" \
-    --silent --fail-with-body
+    -sS --fail-with-body
 }
 export -f s3micro
 
@@ -105,10 +116,13 @@ export -f getObject
 # args: objKey
 deleteObject() {
   if [ -n "${S3_DELETE:-}" ]; then
-    s3micro "DELETE" "$S3_BUCKET" "$1"
-    echo "Deleted: $1" > /dev/stderr
+    s3micro "DELETE" "$S3_BUCKET" "$1" || {
+      echo "S3 Delete Failed!" >/dev/stderr
+      exit 1
+    }
+    echo "Deleted: $1" >/dev/stderr
   else
-    echo "[DRY RUN]" "Deleted: $1" > /dev/stderr
+    echo "[DRY RUN]" "Deleted: $1" >/dev/stderr
   fi
 }
 export -f deleteObject
@@ -132,7 +146,12 @@ export -f records2fh
 # args: objKey
 process() {
   local objkey filename
-  objkey=$(tr -d '[:space:]' <<< "$1");
+  objkey=$(tr -d '[:space:]' <<< "${1:-}"); # trimming is hard :(
+  if [ -z "${objkey}" ]; then
+    echo "input is empty" >&2
+    return 1
+  fi
+
   filename=$(basename -s '.json.gz' "$objkey");
 
   # this is the most jank part of the entire thing

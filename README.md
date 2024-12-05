@@ -44,7 +44,12 @@ You need to setup AWS firehose with:
   The amount of process to run in parralel for upload e.g. `0` for auto
 * `FD_DEBUG`  
   Enable debug output e.g. `/dev/stderr` or `/tmp/debug.logs`
-
+* `CURL_EXTRA_OPTS`
+  The POST curl extra operations. e.g. `--insecure`
+* `AWS_REGION`
+  You should probably set this one e.g. `aq-central-1`
+* `AWS_`
+  You should be able to set all the normal `AWS_` var
 
 # How to
 
@@ -78,6 +83,10 @@ Damnit I should have started with that `:(`
 
 It's my [Cursed Hammer](https://loststeak.com/if-programming-languages-were-weapons/#bash) and I _must_ hit every ~~thumb~~ _Nail_ I see!
 
-## What's up with the annotations?
+## What's up with the Container annotations?
 
-Not very well suppoorted by podman, the annotations from Alpine fall through to the main layer. So I have to set them all
+Not very well suppoorted by podman, the annotations from Alpine fall through to the main layer. So I have to set them all.
+
+## I have an s3 key with a space in, it's not working!
+
+Please open a PR!

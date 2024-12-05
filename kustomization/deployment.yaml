@@ -1,0 +1,76 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-firehose-repeater
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: aws-firehose-repeater
+  replicas: 1
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: aws-firehose-repeater
+    spec:
+      serviceAccountName: aws-firehose-repeater
+      containers:
+      - name: aws-firehose-repeater
+        image: ghcr.io/wesselatwork/aws-firehose-repeater:latest
+        envFrom:
+        - secretRef:
+            name: aws-firehose-repeater-env
+        args:
+        - >
+            touch /tmp/healthy;
+            echo "STARTING";
+            while (true); do
+              bash ./aws-firehose-repeater.bash;
+              sleep 900;
+            done;
+        workingDir: /opt/aws-firehose-repeater
+        readinessProbe:
+          failureThreshold: 3
+          exec:
+            command:
+            - test
+            - -f
+            - /tmp/healthy
+        livenessProbe:
+          exec:
+            command:
+            - /bin/true
+        startupProbe:
+          failureThreshold: 3
+          exec:
+            command:
+            - test
+            - -f
+            - /tmp/healthy
+        resources:
+          requests:
+            memory: 96Mi
+          limits:
+            memory: 128Mi
+        securityContext:
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+            - ALL
+          readOnlyRootFilesystem: false
+        volumeMounts:
+        - mountPath: /opt/aws-firehose-repeater
+          name: aws-firehose-repeater-vol
+        - mountPath: /tmp
+          name: tmp-mem
+      securityContext:
+        runAsNonRoot: false
+        seccompProfile:
+          type: RuntimeDefault
+      serviceAccount: aws-firehose-repeater
+      volumes:
+      - name: aws-firehose-repeater-vol
+        configMap:
+          name: aws-firehose-repeater-cmd
+      - name: tmp-mem
+        emptyDir:
+          medium: Memory
