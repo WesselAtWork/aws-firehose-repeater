@@ -45,7 +45,7 @@ You need to setup AWS firehose with:
 * `FD_DEBUG`  
   Enable debug output e.g. `/dev/stderr` or `/tmp/debug.logs`
 * `CURL_EXTRA_OPTS`
-  The POST curl extra operations. e.g. `--insecure`
+  The final POST curl's extra options. e.g. `--insecure`
 * `AWS_REGION`
   You should probably set this one e.g. `aq-central-1`
 * `AWS_`
