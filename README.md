@@ -53,6 +53,11 @@ You need to setup AWS firehose with:
 
 # How to
 
+## locally configure
+
+`task init`
+`edit config/config.env`
+
 ## install dev tools
 
 `task install:tools`
@@ -60,6 +65,11 @@ You need to setup AWS firehose with:
 ## build
 
 `task podman:build:local`
+
+## generate
+
+`task init`
+`task kustomize:local`
 
 # FAQ
 
@@ -73,7 +83,9 @@ Could not figure out how to `--slurp + --stream` the output into an array withou
 
 ## Why `--squash-all`?
 
-I whish I could do `--layers=true --squash` but there is an [issue](https://github.com/containers/podman/issues/20824) with that combo.
+I whish I could do `--layers=true --squash` but there is an [issue](https://github.com/containers/podman/issues/20824) with that combo.  
+> `--sqaush` combines all the built layers into one and then puts it ontop of the base image (great for userside layer effeciency),  
+> `--squash-all` does the same but also combines the base layer.
 
 ## Why bash? Why not fish?
 
@@ -90,3 +102,8 @@ Not very well suppoorted by podman, the annotations from Alpine fall through to 
 ## I have an s3 key with a space in, it's not working!
 
 Please open a PR!
+
+## Why is config.env loaded in the git repo?
+
+To make kustomize work from ci.  
+I did do `git update-index --skip-worktree config.env` on it then added it to the `.gitignore` so it should be fine™

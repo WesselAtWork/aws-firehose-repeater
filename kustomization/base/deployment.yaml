@@ -16,9 +16,6 @@ spec:
       containers:
       - name: aws-firehose-repeater
         image: ghcr.io/wesselatwork/aws-firehose-repeater:latest
-        envFrom:
-        - secretRef:
-            name: aws-firehose-repeater-env
         args:
         - >
             touch /tmp/healthy;
@@ -27,7 +24,7 @@ spec:
               bash ./aws-firehose-repeater.bash;
               sleep 900;
             done;
-        workingDir: /opt/aws-firehose-repeater
+        workingDir: /usr/local/bin
         readinessProbe:
           failureThreshold: 3
           exec:
@@ -58,19 +55,13 @@ spec:
             - ALL
           readOnlyRootFilesystem: false
         volumeMounts:
-        - mountPath: /opt/aws-firehose-repeater
-          name: aws-firehose-repeater-vol
         - mountPath: /tmp
           name: tmp-mem
       securityContext:
         runAsNonRoot: false
         seccompProfile:
           type: RuntimeDefault
-      serviceAccount: aws-firehose-repeater
       volumes:
-      - name: aws-firehose-repeater-vol
-        configMap:
-          name: aws-firehose-repeater-cmd
       - name: tmp-mem
         emptyDir:
           medium: Memory

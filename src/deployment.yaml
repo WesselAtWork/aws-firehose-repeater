@@ -1,0 +1,18 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-firehose-repeater
+spec:
+  template:
+    spec:
+      serviceAccountName: aws-firehose-repeater
+      containers:
+      - name: aws-firehose-repeater
+        workingDir: /opt/aws-firehose-repeater
+        volumeMounts:
+        - mountPath: /opt/aws-firehose-repeater
+          name: aws-firehose-repeater-vol
+      volumes:
+      - name: aws-firehose-repeater-vol
+        configMap:
+          name: aws-firehose-repeater-cmd

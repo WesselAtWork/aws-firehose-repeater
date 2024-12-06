@@ -1,0 +1,10 @@
+# SPDX-License-Identifier: Apache-2.0
+
+# Usefull when you want to generate the secrets yourself
+
+resources:
+- ../../base
+
+components:
+- ../../../src
+

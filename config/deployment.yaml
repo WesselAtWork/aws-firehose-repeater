@@ -1,0 +1,12 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aws-firehose-repeater
+spec:
+  template:
+    spec:
+      containers:
+      - name: aws-firehose-repeater
+        envFrom:
+        - secretRef:
+            name: aws-firehose-repeater-env

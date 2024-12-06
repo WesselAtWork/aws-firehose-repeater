@@ -17,7 +17,7 @@ vars:
 tasks:
   init:
     cmds:
-      - echo "$(<./config.env.example)" > ./config.env
+      - echo "$(<./config.env.example)" > config/config.env
 
   install:tools:
     cmds:
@@ -35,7 +35,7 @@ tasks:
 
   kustomize:local:
     cmds:
-      - kustomize build . > gen.yaml
+      - kustomize build kustomization/overlays/default > gen.yaml
 
   kustomize:default:
     cmds:
