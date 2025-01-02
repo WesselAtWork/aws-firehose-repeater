@@ -152,6 +152,11 @@ process() {
     return 1
   fi
 
+  if [ "${objkey}" == "None" ]; then
+    echo "listing is empty" >&2
+    return 0
+  fi
+
   filename=$(basename -s '.json.gz' "$objkey");
 
   # this is the most jank part of the entire thing
