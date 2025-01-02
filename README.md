@@ -67,7 +67,7 @@ You need to setup AWS firehose with:
   e.g. `--insecure`
 
 * `AWS_REGION`
-  You should set this.
+  You should set this.  
   e.g. `aq-central-1`
 
 * `AWS_*`
@@ -77,7 +77,7 @@ You need to setup AWS firehose with:
 
 ## locally configure
 
-`task init`
+`task init`  
 `edit config/config.env`
 
 ## install dev tools
@@ -90,7 +90,7 @@ You need to setup AWS firehose with:
 
 ## generate
 
-`task init`
+`task init`  
 `task kustomize:local`
 
 # FAQ
