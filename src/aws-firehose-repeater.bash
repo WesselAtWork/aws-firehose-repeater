@@ -42,6 +42,10 @@ export AWS_ACCOUNT=${AWS_ACCOUNT:-"$(aws sts get-caller-identity --query Account
 : "${FIREHOSE_KEY:=""}"
 : "${FIREHOSE_COMMON_ATR:="{\"commonAttributes\":{}}"}"
 
+if [ -z "${S3_DELETE:-}" ]; then
+  echo "DRY RUNNING S3 DELETE" >&2
+fi
+
 # Functions
 
 # args: RID FIREHOSENAME
@@ -133,11 +137,12 @@ export -f deleteObject
 records2fh() {
   # https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html#requestformat
   # Could not figure out how to jq slurp+stream in a memory effcient manner, so printf + head/cat/tail it is.
-  jq -c '{"data": .|@base64}' \
+  # select( . != "" ) is important for empty newlines, normally they get filtered out becuase jq converts them to a json `null` but now we are doing `-R`` and "" is thus valid
+  gojq -R -c 'select( . != "" )  | {"data": .|@base64}' \
     | tr '\n' ',' \
     | {
         printf '{"requestId":"%s","timestamp":%s,"records":[' "$1" "$(date -u +'%s%3N')";
-        head -c-1;
+        head -c-1;  # removes the last comma [jq should always output a final newline]
         printf ']}';
       } | tee -p -a /dev/fd/3
 }

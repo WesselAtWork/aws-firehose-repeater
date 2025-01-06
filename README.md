@@ -4,7 +4,7 @@ Guess what!
 You _can't_ point AWS Firehose at your internal VPC!  
 **That sucks!**
 
-This uses the `Firehose -> S3` Path to allow you to pretend to be firehose inside of your private vpc.
+This uses the `Firehose -> S3` Path to allow you to pretend to be Firehose inside your private vpc.
 
 # WARNING
 
@@ -14,17 +14,17 @@ This uses the `Firehose -> S3` Path to allow you to pretend to be firehose insid
 * Not 1:1
 * Some Jank™
 * Not Volume Tested
-* Limits from official spec NOT enforced (i.e. 10k records limit, 1Mi record limit etc. )
+* Limits from official spec NOT enforced (i.e. 10k records limit, 1Mi record limit etc.)
 * Spaces in S3 keys not supported.
 * Good Enough
 
 # Setup AWS Firehose
 
-You need to setup AWS firehose with:
+You need to setup AWS Firehose with:
 
 * Pointing to a s3 bucket of your choice.
 * Newline delimiter enabled
-* File extention is set to `.json.gz`
+* File extension is set to `.json.gz`
 
 # Env Variables
 
@@ -55,7 +55,7 @@ You need to setup AWS firehose with:
   > you should keep this on after you have tested your target.
 
 * `NPROCS`  
-  The amount of process to run in parralel for upload  
+  The amount of process to run in parallel for upload  
   e.g. `0` for auto
 
 * `FD_DEBUG`  
@@ -99,13 +99,14 @@ You need to setup AWS firehose with:
 
 Well see, aws-cli runs on python, try to do `cat s3objects.big.list | xargs -P0 -I{} aws s3 cp {} -` and see what happens to your resources.
 
-## Why do the weird `printf`, `cat` json generation instead of using `jq`?
+## Why do the weird `printf`, `cat` JSON generation instead of using `jq -s --stream`?
 
 Could not figure out how to `--slurp + --stream` the output into an array without using all my memory, feel free to open a PR if you know how.  
+> TODO: Run with gojq, they might be better at handling it.
 
 ## Why `--squash-all`?
 
-I wish I could do `--layers=true --squash` but there is an [issue](https://github.com/containers/podman/issues/20824) with that combo.  
+I wish I could do `--layers=true --squash`, but there is an [issue](https://github.com/containers/podman/issues/20824) with that combo.  
 > `--sqaush` combines all the built layers into one and then puts it on top of the base image (great for userside layer efficiency),  
 > `--squash-all` does the same but also combines the base layer.
 
@@ -119,8 +120,23 @@ It's my [Cursed Hammer](https://loststeak.com/if-programming-languages-were-weap
 
 ## What's up with the Container annotations?
 
-Not well supported by podman, the annotations from Alpine fall through to the main layer. So I have to set them all. `:(`
+Not well-supported by podman, the annotations from Alpine fall through to the main layer. So I have to set them all. `:(`
 
-## I have an s3 key with a space in, it's not working!
+## I have a s3 key with a space in, it's not working!
 
 If you need this functionality, please open a PR.
+
+## Interesting use of `gojq -R -c`, but why are you interpreting the input as a raw string? Won't that always be JSON?
+
+You'd thin so! The output of Firehose to the s3 bucket IS NOT GUARANTEED TO BE JSON!  
+It will output a mixture of data types, you will especially notice this when you ingest cloudwatch logs, as those are transported as gziped(?) phrases.
+
+## Why aren't you casting the input then! Shouldn't you interpret the input and convert it to JSON before sending it?
+
+Well the problem is compatibility, I need to replicate what AWS does as closely as possible, and they send the records like that.  
+Endpoints like [loki.source.awsfirehose](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.awsfirehose/), not only deal with it, but actually EXPECT it to work that way so they can categorize it correctly.
+
+## Why [gojq](https://github.com/itchyny/gojq)?
+
+Painful https://github.com/jqlang/jq/issues/1931.  
+[@base64](https://jqlang.github.io/jq/manual/#format-strings-and-escaping) doesn't work the way I want it to.  
