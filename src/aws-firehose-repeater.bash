@@ -37,10 +37,12 @@ export AWS_ACCOUNT=${AWS_ACCOUNT:-"$(aws sts get-caller-identity --query Account
 : "${S3_BUCKET:?"Please Set S3_BUCKET! e.g. some-bucket-name"}"
 : "${S3_PREFIX:="/"}"
 
-: "${FIREHOSE_TARGET:?"Please Set FIREHOSE_TARGET! e.g. http://my-ineternal-host/awsfirehose/api/v1/push"}"
+: "${FIREHOSE_TARGET:?"Please Set FIREHOSE_TARGET! e.g. http://my-internal-host/awsfirehose/api/v1/push"}"
 
 : "${FIREHOSE_KEY:=""}"
 : "${FIREHOSE_COMMON_ATR:="{\"commonAttributes\":{}}"}"
+
+# Other variables
 
 if [ -z "${S3_DELETE:-}" ]; then
   echo "DRY RUNNING S3 DELETE" >&2
@@ -67,6 +69,7 @@ fakeFireHosePost() {
     -sS --fail-with-body 2>&1 | { printf '%s' 'Response: '; cat; printf '\n'; } | paste &> /dev/stderr
 
   # using paste here as a substitute for sponge :^)
+  # the printf happens instantly, which messes with the cmd output
 }
 export -f fakeFireHosePost
 
@@ -132,19 +135,21 @@ deleteObject() {
 export -f deleteObject
 
 # args: RID
-# stream_in: json records in the format '{...}\n{...}\n{...}\n...\n'
+# stream_in: firehose records in the format '{...}\n{...}\ngzip(data)\n...'
 # stream_out: firehose request json object '{...}'
 records2fh() {
   # https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html#requestformat
   # Could not figure out how to jq slurp+stream in a memory effcient manner, so printf + head/cat/tail it is.
-  # select( . != "" ) is important for empty newlines, normally they get filtered out becuase jq converts them to a json `null` but now we are doing `-R`` and "" is thus valid
-  gojq -R -c 'select( . != "" )  | {"data": .|@base64}' \
-    | tr '\n' ',' \
-    | {
-        printf '{"requestId":"%s","timestamp":%s,"records":[' "$1" "$(date -u +'%s%3N')";
-        head -c-1;  # removes the last comma [jq should always output a final newline]
-        printf ']}';
-      } | tee -p -a /dev/fd/3
+  xxd -c0 -ps |   # convert stream into text representation
+    perl -pe 's/(1f8b.{16}.*?0000)/\n\1\n/g' | sed '/^1f8b/!s/0a/\n/g' |   # sperate gzip blocks and then convert newlines back (ignoring the sepreated gzip lines)
+    tr -s '\n' '\n' | # remove all the extra newlines
+    parallel --will-cite -j "${NPROCS:-4}" -n 1 --pipe bash -e -u -o pipefail -c 'xxd -ps -r | base64 -w0 && printf "\n"' |  # convert every line back to real data and then convert to base64
+    jq -R -c 'select(. != "") | {"data": .}' |  # convert every line of base64 to a json object
+    tr '\n' ',' | {
+      printf '{"requestId":"%s","timestamp":%s,"records":[' "$1" "$(date -u +'%s%3N')";
+      head -c-1;  # removes the last comma [jq should always output a final newline]
+      printf ']}';
+    } | tee -p -a /dev/fd/3
 }
 export -f records2fh
 
@@ -158,7 +163,7 @@ process() {
   fi
 
   if [ "${objkey}" == "None" ]; then
-    echo "listing is empty" >&2
+    echo "s3 list is empty" >&2
     return 0
   fi
 

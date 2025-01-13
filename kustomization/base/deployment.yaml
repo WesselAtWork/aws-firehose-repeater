@@ -58,7 +58,7 @@ spec:
         - mountPath: /tmp
           name: tmp-mem
       securityContext:
-        runAsNonRoot: true
+        runAsNonRoot: false
         seccompProfile:
           type: RuntimeDefault
       volumes:
