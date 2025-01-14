@@ -141,6 +141,7 @@ records2fh() {
   # https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html#requestformat
   # Could not figure out how to jq slurp+stream in a memory effcient manner, so printf + head/cat/tail it is.
   xxd -c0 -ps |   # convert stream into text representation
+    tail -n+1 |   # tail need becuase of stupid xxd premature finishing :(
     perl -pe 's/(1f8b.{16}.*?0000)/\n\1\n/g' | sed '/^1f8b/!s/0a/\n/g' |   # sperate gzip blocks and then convert newlines back (ignoring the sepreated gzip lines)
     tr -s '\n' '\n' | # remove all the extra newlines
     parallel --will-cite -j "${NPROCS:-4}" -n 1 --pipe bash -e -u -o pipefail -c 'cat | xxd -ps -r | base64 -w0 && printf "\n"' |  # convert every line back to real data and then convert to base64
