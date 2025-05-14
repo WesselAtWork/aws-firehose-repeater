@@ -16,7 +16,7 @@ exec 1> "$FD_OUT"
 exec 2> "$FD_ERR"
 exec 3> "$FD_DEBUG"
 
-# Loads AWS variables
+## AWS_
 
 echo ${AWS_PROFILE:+"Using AWS Profile: ${AWS_PROFILE}"} >&3
 
@@ -32,28 +32,32 @@ export AWS_REGION=${AWS_REGION:-"$(aws configure get region)"} # aws is a pain, 
 export AWS_ACCOUNT=${AWS_ACCOUNT:-"$(aws sts get-caller-identity --query Account --output text)"}
 : "${AWS_ACCOUNT:?"AWS Error! Could not determine account id!"}"
 
-# Main Variables
+## S3_
 
 : "${S3_BUCKET:?"Please Set S3_BUCKET! e.g. some-bucket-name"}"
-: "${S3_PREFIX:="/"}"
 
-: "${FIREHOSE_TARGET:?"Please Set FIREHOSE_TARGET! e.g. http://my-internal-host/awsfirehose/api/v1/push"}"
-
-: "${FIREHOSE_KEY:=""}"
-: "${FIREHOSE_COMMON_ATR:="{\"commonAttributes\":{}}"}"
-
-# Other variables
+export S3_PREFIX=${S3_PREFIX:="firehose/output/"}
+export S3_CW_PREFIX=${S3_CW_PREFIX:="cw/"}
+export S3_GENERIC_PREFIX=${S3_GENERIC_PREFIX:="generic/"}
 
 if [ -z "${S3_DELETE:-}" ]; then
   echo "DRY RUNNING S3 DELETE" >&2
 fi
+
+## FIREHOSE_
+
+: "${FIREHOSE_TARGET:?"Please Set FIREHOSE_TARGET! e.g. http://my-internal-host/awsfirehose/api/v1/push"}"
+
+export FIREHOSE_KEY=${FIREHOSE_KEY:=""}
+export FIREHOSE_COMMON_ATR=${FIREHOSE_COMMON_ATR:="{\"commonAttributes\":{}}"}
+
 
 # Functions
 
 # args: RID FIREHOSENAME
 # stream_out: none
 fakeFireHosePost() {
-  echo "Sending: $1" > /dev/stderr
+  echo "Sending: $1" >&2
   local e_opts
   e_opts=( "${CURL_EXTRA_OPTS:-}" )
   # https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html
@@ -66,7 +70,7 @@ fakeFireHosePost() {
     -H "X-Amz-Firehose-Source-Arn: arn:aws:firehose:${AWS_REGION}:${AWS_ACCOUNT}:deliverystream/${2}" \
     -H "X-Amz-Firehose-Access-Key: ${FIREHOSE_KEY}" \
     -H "X-Amz-Firehose-Common-Attributes: ${FIREHOSE_COMMON_ATR}" \
-    -sS --fail-with-body 2>&1 | { printf '%s' 'Response: '; cat; printf '\n'; } | paste &> /dev/stderr
+    -sS --fail-with-body 2>&1 | { printf '%s' 'Response: '; cat; printf '\n'; } | paste >&2
 
   # using paste here as a substitute for sponge :^)
   # the printf happens instantly, which messes with the cmd output
@@ -115,7 +119,7 @@ export -f s3micro
 # args: objKey
 # stream_out: object data
 getObject() {
-  echo "Getting: $1" > /dev/stderr
+  echo "Getting: $1" >&2
   s3micro "GET" "$S3_BUCKET" "$1"
 }
 export -f getObject
@@ -124,35 +128,51 @@ export -f getObject
 deleteObject() {
   if [ -n "${S3_DELETE:-}" ]; then
     s3micro "DELETE" "$S3_BUCKET" "$1" || {
-      echo "S3 Delete Failed!" >/dev/stderr
+      echo "S3 Delete Failed!" >&2
       exit 1
     }
-    echo "Deleted: $1" >/dev/stderr
+    echo "Deleted: $1" >&2
   else
-    echo "[DRY RUN]" "Deleted: $1" >/dev/stderr
+    echo "[DRY RUN]" "Deleted: $1" >&2
   fi
 }
 export -f deleteObject
 
 # args: RID
-# stream_in: firehose records in the format '{...}\n{...}\ngzip(data)\n...'
+# stream_in: firehose request records in the format '{data: base64({...})}\n{data: base64({...})}\n...'
 # stream_out: firehose request json object '{...}'
-records2fh() {
-  # https://docs.aws.amazon.com/firehose/latest/dev/httpdeliveryrequestresponse.html#requestformat
-  # Could not figure out how to jq slurp+stream in a memory effcient manner, so printf + head/cat/tail it is.
-  xxd -c0 -ps |   # convert stream into text representation
-    tail -n+1 |   # tail need becuase of stupid xxd premature finishing :(
-    perl -pe 's/(1f8b.{16}.*?0000)/\n\1\n/g' | sed '/^1f8b/!s/0a/\n/g' |   # sperate gzip blocks and then convert newlines back (ignoring the sepreated gzip lines)
-    tr -s '\n' '\n' | # remove all the extra newlines
-    parallel --will-cite -j "${NPROCS:-4}" -n 1 --pipe bash -e -u -o pipefail -c 'cat | xxd -ps -r | base64 -w0 && printf "\n"' |  # convert every line back to real data and then convert to base64
-    jq -R -c 'select(. != "") | {"data": .}' |  # convert every line of base64 to a json object
-    tr '\n' ',' | {
-      printf '{"requestId":"%s","timestamp":%s,"records":[' "$1" "$(date -u +'%s%3N')";
-      head -c-1;  # removes the last comma [jq should always output a final newline]
-      printf ']}';
-    } | tee -p -a /dev/fd/3
+data2fh() {
+  # keeping things DRY
+  tr '\n' ',' | {
+    printf '{"requestId":"%s","timestamp":%s,"records":[' "$1" "$(date -u +'%s%3N')";
+    head -c-1;  # removes the last comma [jq should always output a final newline]
+    printf ']}';
+  } | tee -p -a /dev/fd/3
 }
-export -f records2fh
+export -f data2fh
+
+# args: RID
+# stream_in: firehose s3 records in the format '{...}\n\n{...}\n...'
+# stream_out: firehose request json object '{...}'
+genericRecords2fh() {
+  tr -s '\n' '\n' |
+    gojq -R -c  'select(. != "") | {"data": . | @base64}' |  # convert every line to the data: json object
+    data2fh "${1}"
+}
+export -f genericRecords2fh
+
+# args: RID
+# stream_in: firehose CW s3 records in the format '{...}\n\n{...}\n...'
+# stream_out: firehose request json object '{...}'
+cwRecords2fh() {
+  # cloudwatch is different, the receiver expects a different format. :(
+  # note: the first `-R` is technically unnecessary because even though it gives a 2x speed up, the thing slowing down is the command interpreter. :(
+  tr -s '\n' '\n' |
+    gojq -R -r '"echo -n \( . | tostring | @sh) | gzip -1 | base64 -w0 && echo;"' | ash |  # generate commands; don't use pigz as it's startup invocation is slower then gzip
+    gojq -R -c  'select(. != "") | {"data": .}' |  # convert every line of base64 to the data: json object
+    data2fh "${1}"
+}
+export -f cwRecords2fh
 
 # args: objKey
 process() {
@@ -167,6 +187,24 @@ process() {
     echo "s3 list is empty" >&2
     return 0
   fi
+
+  local type
+  type="unkown"
+
+  case "${objkey}" in
+    "${S3_PREFIX}${S3_CW_PREFIX}"* )
+      echo "[DEBUG] ${objkey} -> CW" >&3;
+      type="CW";
+        ;;
+    "${S3_PREFIX}${S3_GENERIC_PREFIX}"* )
+      echo "[DEBUG] ${objkey} -> GENERIC" >&3;
+      type="GENERIC";
+        ;;
+    *)
+      echo "Could not determine if obj: ${objkey} belongs in CW: ${S3_PREFIX}${S3_CW_PREFIX} or GENERIC: ${S3_PREFIX}${S3_GENERIC_PREFIX}" >&2
+      return 2
+        ;;
+  esac
 
   filename=$(basename -s '.json.gz' "$objkey");
 
@@ -184,16 +222,33 @@ process() {
 
   local s3URL
   s3URL="s3://$S3_BUCKET/$objkey"
-  echo "Processing: $s3URL" > /dev/stderr
+  echo "Processing: $s3URL" >&2
 
-  {
-    { getObject "$objkey" | gunzip \
-      | records2fh "$rid" \
-      | fakeFireHosePost "$rid" "$fireHoseName"
-    } && deleteObject "$objkey"
-  } || return 1
+  # need to write out every block because the pipelines like it that way
+  case "${type}" in
+    "GENERIC")
+      {
+        { getObject "$objkey" | pigz -d |
+          genericRecords2fh "$rid" |
+          fakeFireHosePost "$rid" "$fireHoseName"
+        } && deleteObject "$objkey"
+      } || return 1;
+        ;;
+    "CW")
+      {
+        { getObject "$objkey" | pigz -d |
+          cwRecords2fh "$rid" |
+          fakeFireHosePost "$rid" "$fireHoseName"
+        } && deleteObject "$objkey"
+      } || return 1;
+        ;;
+    *)
+      echo "${s3URL} was type: ${type} ?!" >&2
+      return 3
+        ;;
+  esac
 
-  echo "$s3URL" > /dev/stdout
+  echo "$s3URL" >&1
   return 0
 }
 export -f process

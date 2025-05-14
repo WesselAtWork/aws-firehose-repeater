@@ -1,0 +1,6 @@
+# EditorConfig is awesome: https://EditorConfig.org
+
+# top-most EditorConfig file
+[s3.list]
+insert_final_newline = false
+indent_style = tab

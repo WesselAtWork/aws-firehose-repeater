@@ -44,7 +44,7 @@ tasks:
 
 
   podman:login:
-    description: "Generic podman login. Spesify the username and then pipe the password."
+    desc: "Generic podman login. Spesify the username and then pipe the password."
     cmds:
       - podman login "{{.REGISTRY}}" -u {{.CLI_ARGS}} --password-stdin
 

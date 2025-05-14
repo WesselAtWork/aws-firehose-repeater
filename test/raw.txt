@@ -1,0 +1,4 @@
+some raw text values
+
+newline delimited of course
+the doubles are to test the tr squeeze
