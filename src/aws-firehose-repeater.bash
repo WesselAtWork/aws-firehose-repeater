@@ -79,39 +79,63 @@ export -f fakeFireHosePost
 
 # args: METHOD BUCKET OBJKEY
 s3micro() {
-  # see https://github.com/paulhammond/s3simple/blob/main/s3simple
+  # striped down [s3simple](https://github.com/paulhammond/s3simple/blob/main/s3simple) with no variable checking
+  # v4sig: https://rebirth.devoteam.com/2023/01/19/s3-object-securely-curl-openssl-sigv4/ and https://czak.pl/posts/s3-rest-api-with-curl
   local method="$1"
   local bucket="$2"
   local objKey="$3"
 
-  local path="${bucket}/${objKey}"
+  local host="${bucket}.s3.amazonaws.com"
+  local path="/${objKey}"
+  local aws_query=""
 
-  local args md5
-  md5=""
+  local args
   args=(-o "-")
 
-  local aws_headers=""
+  local ts short_date long_date aws_date
+  ts="$(date -u '+%s')"
+  aws_date="$(date -u --date="@${ts}" +'%Y%m%dT%H%M%SZ')"
+  short_date="$(date -u --date="@${ts}" +'%Y%m%d')"
+  long_date="$(date -u --date="@${ts}" +'%a, %e %b %Y %H:%M:%S GMT')"
+
+  local hashed_payload aws_headers headers_list
+  hashed_payload="$(echo -n | openssl dgst -sha256 -binary | xxd -p -c0)" # should be empty hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  printf -v aws_headers '%s:%s\n' "date" "$long_date" "host" "$host" "x-amz-content-sha256" "$hashed_payload" "x-amz-date" "$aws_date"  # extra newline is ok
+  printf -v headers_list '%s;' "date" "host" "x-amz-content-sha256" "x-amz-date"                                                        # extra semi-colon is not
+
+  args+=(-H "Date: ${long_date}")
+  args+=(-H "x-amz-content-sha256: ${hashed_payload}")
+  args+=(-H "x-amz-date: ${aws_date}")
+
   if [ -n "${AWS_SESSION_TOKEN-}" ]; then
-    args=("${args[@]}" -H "x-amz-security-token: ${AWS_SESSION_TOKEN}")
-    aws_headers="x-amz-security-token:${AWS_SESSION_TOKEN}\n"
+    args+=(-H "x-amz-security-token: ${AWS_SESSION_TOKEN}")
+    aws_headers+="x-amz-security-token:${AWS_SESSION_TOKEN}"$'\n'
+    headers_list+="x-amz-security-token;"
   fi
 
-  local date
-  date="$(date -u '+%a, %e %b %Y %H:%M:%S +0000')"
+  headers_list="${headers_list::-1}" # remove last comma
 
-  local string_to_sign
-  printf -v string_to_sign "%s\n%s\n\n%s\n%b%s" "$method" "$md5" "$date" "$aws_headers" "/$path"
 
-  local signature
-  signature=$(echo -n "$string_to_sign" | openssl sha1 -binary -hmac "${AWS_SECRET_ACCESS_KEY}" | openssl base64)
+  local canonical_request  cr_hash   scope  string_to_sign
+  printf -v canonical_request "%s\n%s\n%s\n%s\n%s\n%s" "$method" "$path" "$aws_query" "$aws_headers" "$headers_list" "$hashed_payload"
+  cr_hash=$(echo -n "${canonical_request}" | openssl dgst -sha256 -binary | xxd -p -c0)
 
-  local authorization="AWS ${AWS_ACCESS_KEY_ID}:${signature}"
+  printf -v scope "%s/%s/%s/%s" "$short_date" "$AWS_REGION" "s3" "aws4_request"
+  printf -v string_to_sign "%s\n%s\n%s\n%s" "AWS4-HMAC-SHA256" "$aws_date" "$scope" "$cr_hash"
+
+  local signature authorization
+  signature=$(echo -n "$short_date"     | openssl dgst -sha256 -mac HMAC -macopt "key:AWS4${AWS_SECRET_ACCESS_KEY}" -binary | xxd -p -c0)
+  signature=$(echo -n "$AWS_REGION"     | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
+  signature=$(echo -n "s3"              | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
+  signature=$(echo -n "aws4_request"    | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
+  signature=$(echo -n "$string_to_sign" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
+
+  printf -v authorization "%s Credential=%s/%s,SignedHeaders=%s,Signature=%s" "AWS4-HMAC-SHA256" "$AWS_ACCESS_KEY_ID" "$scope" "$headers_list" "$signature"
 
   curl "${args[@]}" \
-    -H "Date: ${date}" \
     -H "Authorization: ${authorization}" \
     -X "$method" \
-    "https://${bucket}.s3.amazonaws.com/${objKey}" \
+    "https://${host}${path}" \
     -sS --fail-with-body
 }
 export -f s3micro
@@ -166,9 +190,8 @@ export -f genericRecords2fh
 # stream_out: firehose request json object '{...}'
 cwRecords2fh() {
   # cloudwatch is different, the receiver expects a different format. :(
-  # note: the first `-R` is technically unnecessary because even though it gives a 2x speed up, the thing slowing down is the command interpreter. :(
   tr -s '\n' '\n' |
-    gojq -R -r '"echo -n \( . | tostring | @sh) | gzip -1 | base64 -w0 && echo;"' | ash |  # generate commands; don't use pigz as it's startup invocation is slower then gzip
+    gojq -r '"echo -n \( . | tostring | @sh) | gzip -1 | base64 -w0 && echo;"' | ash |  # generate commands; don't use pigz as it's startup invocation is slower then gzip
     gojq -R -c  'select(. != "") | {"data": .}' |  # convert every line of base64 to the data: json object
     data2fh "${1}"
 }
