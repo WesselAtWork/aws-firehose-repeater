@@ -99,7 +99,7 @@ s3micro() {
   long_date="$(date -u --date="@${ts}" +'%a, %e %b %Y %H:%M:%S GMT')"
 
   local hashed_payload aws_headers headers_list
-  hashed_payload="$(echo -n | openssl dgst -sha256 -binary | xxd -p -c0)" # should be empty hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+  hashed_payload="$(echo -n | openssl dgst -sha256 -binary | xxd -p -c32)" # should be empty hash: e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
   printf -v aws_headers '%s:%s\n' "date" "$long_date" "host" "$host" "x-amz-content-sha256" "$hashed_payload" "x-amz-date" "$aws_date"  # extra newline is ok
   printf -v headers_list '%s;' "date" "host" "x-amz-content-sha256" "x-amz-date"                                                        # extra semi-colon is not
 
@@ -118,17 +118,17 @@ s3micro() {
 
   local canonical_request  cr_hash   scope  string_to_sign
   printf -v canonical_request "%s\n%s\n%s\n%s\n%s\n%s" "$method" "$path" "$aws_query" "$aws_headers" "$headers_list" "$hashed_payload"
-  cr_hash=$(echo -n "${canonical_request}" | openssl dgst -sha256 -binary | xxd -p -c0)
+  cr_hash=$(echo -n "${canonical_request}" | openssl dgst -sha256 -binary | xxd -p -c32)
 
   printf -v scope "%s/%s/%s/%s" "$short_date" "$AWS_REGION" "s3" "aws4_request"
   printf -v string_to_sign "%s\n%s\n%s\n%s" "AWS4-HMAC-SHA256" "$aws_date" "$scope" "$cr_hash"
 
   local signature authorization
-  signature=$(echo -n "$short_date"     | openssl dgst -sha256 -mac HMAC -macopt "key:AWS4${AWS_SECRET_ACCESS_KEY}" -binary | xxd -p -c0)
-  signature=$(echo -n "$AWS_REGION"     | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
-  signature=$(echo -n "s3"              | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
-  signature=$(echo -n "aws4_request"    | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
-  signature=$(echo -n "$string_to_sign" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c0)
+  signature=$(echo -n "$short_date"     | openssl dgst -sha256 -mac HMAC -macopt "key:AWS4${AWS_SECRET_ACCESS_KEY}" -binary | xxd -p -c32)
+  signature=$(echo -n "$AWS_REGION"     | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c32)
+  signature=$(echo -n "s3"              | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c32)
+  signature=$(echo -n "aws4_request"    | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c32)
+  signature=$(echo -n "$string_to_sign" | openssl dgst -sha256 -mac HMAC -macopt "hexkey:${signature}" -binary | xxd -p -c32)
 
   printf -v authorization "%s Credential=%s/%s,SignedHeaders=%s,Signature=%s" "AWS4-HMAC-SHA256" "$AWS_ACCESS_KEY_ID" "$scope" "$headers_list" "$signature"
 
