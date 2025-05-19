@@ -19,18 +19,18 @@ spec:
         args:
         - |
             failure=0;
-            touch /tmp/ready;
+            touch /tmp/healthy;
             echo "STARTING";
             while (true); do
               bash ./aws-firehose-repeater.bash;
               if [ $? -eq 0 ]; then
                 failure=0;
-                touch /tmp/ready;
+                touch /tmp/healthy;
                 sleep 900;
               else
                 failure=$((failure + 1));
                 echo "FAILED ${failure}";
-                rm -f /tmp/ready;
+                rm -f /tmp/healthy;
                 sleep 1;
               fi
             done;
@@ -41,7 +41,7 @@ spec:
             command:
             - test
             - -f
-            - /tmp/ready
+            - /tmp/healthy
         livenessProbe:
           exec:
             command:
@@ -52,7 +52,7 @@ spec:
             command:
             - test
             - -f
-            - /tmp/ready
+            - /tmp/healthy
         resources:
           requests:
             memory: 96Mi
