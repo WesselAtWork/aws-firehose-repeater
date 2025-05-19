@@ -1,4 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
+# if you don't want to deploy the script as a configmap
+
 resources:
 - ../../base

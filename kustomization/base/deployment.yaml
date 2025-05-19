@@ -17,12 +17,22 @@ spec:
       - name: aws-firehose-repeater
         image: ghcr.io/wesselatwork/aws-firehose-repeater:latest
         args:
-        - >
-            touch /tmp/healthy;
+        - |
+            failure=0;
+            touch /tmp/ready;
             echo "STARTING";
             while (true); do
               bash ./aws-firehose-repeater.bash;
-              sleep 900;
+              if [ $? -eq 0 ]; then
+                failure=0;
+                touch /tmp/ready;
+                sleep 900;
+              else
+                failure=$((failure + 1));
+                echo "FAILED ${failure}";
+                rm -f /tmp/ready;
+                sleep 1;
+              fi
             done;
         workingDir: /usr/local/bin
         readinessProbe:
@@ -31,7 +41,7 @@ spec:
             command:
             - test
             - -f
-            - /tmp/healthy
+            - /tmp/ready
         livenessProbe:
           exec:
             command:
@@ -42,7 +52,7 @@ spec:
             command:
             - test
             - -f
-            - /tmp/healthy
+            - /tmp/ready
         resources:
           requests:
             memory: 96Mi

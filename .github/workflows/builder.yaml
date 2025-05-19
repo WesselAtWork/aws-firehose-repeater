@@ -43,4 +43,4 @@ jobs:
       - name: Build Image
         env:
           OWNER: ${{github.repository_owner}}
-        run: DATETIME=$(date -u --iso-8601=seconds)  task NAMESPACE=${OWNER,,} podman:build
+        run: task podman:build NAMESPACE=${OWNER,,} DATETIME="$(date -u --iso-8601=seconds)"

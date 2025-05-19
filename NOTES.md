@@ -78,3 +78,7 @@ Real GZIP stanzas are supposed to be single null (00) terminated, but for some r
 __Fine__ that entire block came from the problem that I couldn't deal with the mixture of normal text and gziped data.  
 Ideally, you'd have either JUST gziped stanzas or JUST normal text.  
 The gziped data MAY contain `0a` (newlines) and therefor I can't cheat with the newline as the record delimiter.
+
+### Why not `zcat -f` ?
+
+That only decodes until it hits non-gzip data, it then "fails-open" and then acts as cat for the rest of the stream.

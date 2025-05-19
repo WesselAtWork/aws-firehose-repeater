@@ -52,26 +52,48 @@ tasks:
     cmds:
       - aws ecr get-login-password --region {{.AWS_REGION}} | podman login --password-stdin --username AWS "${REGISTRY}"
 
-  podman:build:local:
+  podman:local:build:
+    desc: Builds a local dev image
     cmds:
-      - podman build --layers . -f .\Containerfile -t localhost/aws-firehose-repeater:local
+      - podman build --layers . -f ./Containerfile -t localhost/aws-firehose-repeater:local
+
+  podman:local:sh:
+    desc: Runs an interactive shell with the local image
+    interactive: true
+    deps:
+      - task: podman:local:build
+    cmds:
+    - cmd: podman run --rm -it localhost/aws-firehose-repeater:local "bash"
 
   podman:build:
+    desc: "Builds the release image"
+    summary: |
+      Builds the release image NAME based on the current latest ALPINE_VERSION using `--layers` and `--squash`
+      Uses the podman CACHE machanisim, to speed up builds.
+      Builds for arm and x86 PLATFORMS.
+      Also NAMES the containers with a list of common labels.
+
+      You must provide the current DATETIME in ISO-8601.
+      You can use `DATETIME=$(date -u --iso-8601=seconds)`.
     env:
-      DATETIME: ""  # You should set this
+      DATETIME: ""
       #  sh: date -u --iso-8601=seconds   # damnit DOS!
     vars:
       MANIFEST: "aws-firehose-repeater:manifest"
+      DATETIME: '{{default .DATETIME (env "DATETIME")}}'    # takes precedence from the env DATETIME first.
       NAME: "{{.REGISTRY}}/{{.NAMESPACE}}/aws-firehose-repeater"
       CACHE: "{{.REGISTRY}}/{{.NAMESPACE}}/aws-firehose-repeater-cache"
       PLATFORMS: "linux/amd64,linux/arm64"
       ALPINE_VERSION:
         sh: skopeo inspect --raw docker://docker.io/library/alpine:latest | jq -r '.manifests[0].annotations."org.opencontainers.image.version"'
       NAMES: '{{.NAME}}:latest {{.NAME}}:{{.BRANCH}} {{.NAME}}:{{.COMMIT}} {{.NAME}}:alpine {{.NAME}}:alpine-{{.ALPINE_VERSION}} {{.NAME}}:{{.VERSION}}'
+    requires:
+      vars:
+        - DATETIME
     cmds:
       - echo "CURRENTLY '--layers + --squash' does not work as intended https://github.com/containers/podman/issues/20824"
       - podman manifest create {{ .MANIFEST }}
-      - defer: podman manifest rm {{.MANIFEST}}
+      - defer: podman manifest rm {{ .MANIFEST }}
       - >
           podman build
           --manifest {{ .MANIFEST }}
@@ -80,7 +102,7 @@ tasks:
           --annotation org.opencontainers.image.revision={{.COMMIT}}
           --annotation org.opencontainers.image.licenses={{.LICENCE}}
           --annotation org.opencontainers.image.version={{.VERSION}}
-          --annotation org.opencontainers.image.created=$DATETIME
+          --annotation org.opencontainers.image.created={{.DATETIME}}
           --annotation org.opencontainers.image.source={{.SOURCE}}
           --annotation org.opencontainers.image.url={{.SOURCE}}
           --annotation com.docker.official-images.bashbrew.arch=

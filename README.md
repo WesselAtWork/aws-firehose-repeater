@@ -28,6 +28,8 @@ You need to set up a AWS Firehose stream with:
   i.e. `firehose/output/generic/`  
 * Compression set to `GZIP`
 * File extension is set to `.json.gz`
+* Size set to max (128MiB)
+* Time set to max (900)
 
 ## ...for CW as the source
 
@@ -38,6 +40,8 @@ for cloudwatch logs as your source, you need an EXTRA firehose stream setup with
   i.e. `firehose/output/cw/`
 * Compression set to `NONE`
 * File extension is set to `.json.gz`
+* Size set to max (128MiB)
+* Time set to max (900)
 
 # Env Variables
 
@@ -96,10 +100,11 @@ for cloudwatch logs as your source, you need an EXTRA firehose stream setup with
 
 # How to
 
-## locally configure
+## deploy
 
 `task init`  
-`edit config/config.env`
+`edit config/config.env`  
+`task kustomize:default`  
 
 ## install dev tools
 
@@ -107,7 +112,7 @@ for cloudwatch logs as your source, you need an EXTRA firehose stream setup with
 
 ## build
 
-`task podman:build:local`
+`task podman:local:build`
 
 ## generate
 
@@ -136,7 +141,7 @@ Dammit I should have started with that `:(`
 
 ## Why not use **[PROGRAMING LANGUAGE]**?
 
-It's my [Cursed Hammer](https://loststeak.com/if-programming-languages-were-weapons/#bash) and I get to hit every ~~thumb~~ _Nail_ I see!
+It's my [Cursed Hammer](https://loststeak.com/if-programming-languages-were-weapons/#bash) and I get to hit the ~~thumbs~~ _Nails_ I see!
 
 ## What's up with the Container annotations?
 
@@ -151,7 +156,7 @@ If you need this functionality, please open a PR.
 The output of Firehose to the s3 bucket IS NOT GUARANTEED TO BE JSON!  
 It will output a mixture of data types, you will especially notice this when you ingest cloudwatch logs, as those are transported as gziped stanzas.
 
-## Shouldn't you interpret the input and convert it to JSON before sending it?
+## Shouldn't you convert it to JSON before sending it?
 
 Well the problem is compatibility, I need to replicate what AWS does as closely as possible, and they send the records like that.  
 Endpoints like [loki.source.awsfirehose](https://grafana.com/docs/alloy/latest/reference/components/loki/loki.source.awsfirehose/), not only deal with it, but actually EXPECT it to work that way so they can categorize it correctly.
