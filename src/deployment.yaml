@@ -12,6 +12,7 @@ spec:
         volumeMounts:
         - mountPath: /opt/aws-firehose-repeater
           name: aws-firehose-repeater-vol
+          readOnly: true
       volumes:
       - name: aws-firehose-repeater-vol
         configMap:

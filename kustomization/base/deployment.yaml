@@ -63,15 +63,20 @@ spec:
           capabilities:
             drop:
             - ALL
-          readOnlyRootFilesystem: false
+          readOnlyRootFilesystem: true
         volumeMounts:
         - mountPath: /tmp
           name: tmp-mem
+        - mountPath: /home/afhr/.aws
+          name: aws-mem
       securityContext:
-        runAsNonRoot: false
+        runAsNonRoot: true
         seccompProfile:
           type: RuntimeDefault
       volumes:
       - name: tmp-mem
+        emptyDir:
+          medium: Memory
+      - name: aws-mem
         emptyDir:
           medium: Memory
